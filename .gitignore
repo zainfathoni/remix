@@ -7,5 +7,6 @@ yarn-error.log
 /MICHAEL_TODOS.md
 /fixtures/cloudflare
 /fixtures/test
+/fixtures/deno-app
 
 .eslintcache

@@ -4,7 +4,9 @@
   "version": "0.21.0",
   "repository": "https://github.com/remix-run/packages",
   "dependencies": {
-    "@remix-run/node": "0.21.0"
+    "@remix-run/node": "0.21.0",
+    "@remix-run/server-runtime": "0.21.0",
+    "abort-controller": "^3.0.0"
   },
   "peerDependencies": {
     "@vercel/node": "^1.8.3"
