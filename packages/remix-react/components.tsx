@@ -1039,9 +1039,13 @@ export function useSubmitImpl(key?: string): SubmitFunction {
         }
 
         // <button>/<input type="submit"> may override attributes of <form>
-        method = options.method || target.formMethod || form.method;
-        action = options.action || target.formAction || form.action;
-        encType = options.encType || target.formEnctype || form.enctype;
+
+        method =
+          options.method || target.getAttribute("formmethod") || form.method;
+        action =
+          options.action || target.getAttribute("formaction") || form.action;
+        encType =
+          options.encType || target.getAttribute("formenctype") || form.enctype;
         formData = new FormData(form);
 
         // Include name + value from a <button>
