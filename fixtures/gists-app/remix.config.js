@@ -1,5 +1,6 @@
 const fsp = require("fs").promises;
 const path = require("path");
+const { vanillaExtractPlugin } = require("@vanilla-extract/esbuild-plugin");
 
 /**
  * @type {import("@remix-run/dev/config").AppConfig}
@@ -42,5 +43,12 @@ module.exports = {
         route(":messageId", "pages/child.jsx");
       });
     });
+  },
+  unstable_esbuildPlugins() {
+    return [
+      vanillaExtractPlugin({
+        outputCss: "fart.css"
+      })
+    ];
   }
 };

@@ -1,6 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
+import type * as esbuild from "esbuild";
 
+import type { BuildTarget } from "./build";
 import type { RouteManifest, DefineRoutesFunction } from "./config/routes";
 import { defineRoutes } from "./config/routes";
 import { defineConventionalRoutes } from "./config/routesConvention";
@@ -75,6 +77,8 @@ export interface AppConfig {
   devServerBroadcastDelay?: number;
 
   mdx?: RemixMdxConfig | RemixMdxConfigFunction;
+
+  unstable_esbuildPlugins?: (target?: BuildTarget) => esbuild.Plugin[];
 }
 
 /**
@@ -142,6 +146,8 @@ export interface RemixConfig {
   devServerBroadcastDelay: number;
 
   mdx?: RemixMdxConfig | RemixMdxConfigFunction;
+
+  unstable_esbuildPlugins: AppConfig["unstable_esbuildPlugins"];
 }
 
 /**
@@ -243,7 +249,8 @@ export async function readConfig(
     routes,
     serverBuildDirectory,
     serverMode,
-    mdx: appConfig.mdx
+    mdx: appConfig.mdx,
+    unstable_esbuildPlugins: appConfig.unstable_esbuildPlugins
   };
 }
 

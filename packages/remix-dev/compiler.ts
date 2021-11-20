@@ -314,7 +314,11 @@ async function createBrowserBuild(
       mdxPlugin(config),
       browserRouteModulesPlugin(config, /\?browser$/),
       emptyModulesPlugin(config, /\.server(\.[jt]sx?)?$/)
-    ]
+    ].concat(
+      config.unstable_esbuildPlugins
+        ? config.unstable_esbuildPlugins(options.target)
+        : []
+    )
   });
 }
 
@@ -378,12 +382,21 @@ async function createServerBuild(
 
         return false;
       })
-    ]
+    ].concat(
+      config.unstable_esbuildPlugins
+        ? config.unstable_esbuildPlugins(options.target)
+        : []
+    )
   });
 }
 
 function isBareModuleId(id: string): boolean {
-  return !id.startsWith(".") && !id.startsWith("~") && !path.isAbsolute(id);
+  return (
+    !id.startsWith(".") &&
+    !id.startsWith("~") &&
+    !id.includes("?") &&
+    !path.isAbsolute(id)
+  );
 }
 
 function getNpmPackageName(id: string): string {
