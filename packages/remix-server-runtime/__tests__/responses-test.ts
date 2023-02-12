@@ -1,4 +1,6 @@
+import type { TypedResponse } from "../index";
 import { json, redirect } from "../index";
+import { isEqual } from "./utils";
 
 describe("json", () => {
   it("sets the Content-Type header", () => {
@@ -14,8 +16,8 @@ describe("json", () => {
       {
         headers: {
           "Content-Type": "application/json; charset=iso-8859-1",
-          "X-Remix": "is awesome"
-        }
+          "X-Remix": "is awesome",
+        },
       }
     );
 
@@ -34,6 +36,25 @@ describe("json", () => {
     let response = json({}, 201);
     expect(response.status).toEqual(201);
   });
+
+  it("infers input type", async () => {
+    let response = json({ hello: "remix" });
+    isEqual<typeof response, TypedResponse<{ hello: string }>>(true);
+    let result = await response.json();
+    expect(result).toMatchObject({ hello: "remix" });
+  });
+
+  it("disallows unmatched typed responses", async () => {
+    let response = json("hello");
+    isEqual<TypedResponse<number>, typeof response>(false);
+  });
+
+  it("disallows unserializables", () => {
+    // @ts-expect-error
+    expect(() => json(124n)).toThrow();
+    // @ts-expect-error
+    expect(() => json({ field: 124n })).toThrow();
+  });
 });
 
 describe("redirect", () => {
@@ -45,8 +66,8 @@ describe("redirect", () => {
   it("sets the status to 302 when only headers are given", () => {
     let response = redirect("/login", {
       headers: {
-        "X-Remix": "is awesome"
-      }
+        "X-Remix": "is awesome",
+      },
     });
     expect(response.status).toEqual(302);
   });
@@ -60,8 +81,8 @@ describe("redirect", () => {
     let response = redirect("/login", {
       headers: {
         Location: "/",
-        "X-Remix": "is awesome"
-      }
+        "X-Remix": "is awesome",
+      },
     });
 
     expect(response.headers.get("Location")).toEqual("/login");

@@ -23,12 +23,12 @@ console.log(json);
 // { hello: "there" }
 ```
 
-Rather than pick a server-side API, Remix adopts the Web Fetch API for all http handling. Note that our deployment wrappers like `@remix-run/express` are simply adapters between the deployment server's API and the Web API. `@remix-run/express` interperets a Web API Response that you return from a loader or your server entry into an express response.
+Rather than pick a server-side API, Remix adopts the Web Fetch API for all http handling. Note that our deployment wrappers like `@remix-run/express` are simply adapters between the deployment server's API and the Web API. `@remix-run/express` interprets a Web API Response that you return from a loader or your server entry into an express response.
 
 While you can use these APIs directly in Remix, you'll typically use response helpers instead:
 
-- [json](../api/remix#json)
-- [redirect](../api/remix#redirect)
+- [json][json]
+- [redirect][redirect]
 
 ## Globally Available
 
@@ -36,4 +36,8 @@ Remix adds `Request`, `Response`, `Headers`, and `fetch` to your loader's global
 
 ## MDN Docs
 
-[https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
+[https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API][https-developer-mozilla-org-en-us-docs-web-api-fetch-api]
+
+[json]: ../utils/json
+[redirect]: ../utils/redirect
+[https-developer-mozilla-org-en-us-docs-web-api-fetch-api]: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API

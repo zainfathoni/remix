@@ -1,10 +1,15 @@
-import * as fs from "fs";
 import * as path from "path";
+import { pathToFileURL } from "url";
+import * as fse from "fs-extra";
+import getPort from "get-port";
 
 import type { RouteManifest, DefineRoutesFunction } from "./config/routes";
 import { defineRoutes } from "./config/routes";
 import { defineConventionalRoutes } from "./config/routesConvention";
 import { ServerMode, isValidServerMode } from "./config/serverModes";
+import { serverBuildVirtualModule } from "./compiler/virtualModules";
+import { writeConfigDefaults } from "./compiler/utils/tsconfig/write-config-defaults";
+import { flatRoutes } from "./config/flat-routes";
 
 export interface RemixMdxConfig {
   rehypePlugins?: any[];
@@ -15,25 +20,55 @@ export type RemixMdxConfigFunction = (
   filename: string
 ) => Promise<RemixMdxConfig | undefined> | RemixMdxConfig | undefined;
 
+export type ServerBuildTarget =
+  | "node-cjs"
+  | "arc"
+  | "netlify"
+  | "vercel"
+  | "cloudflare-pages"
+  | "cloudflare-workers"
+  | "deno";
+
+export type ServerModuleFormat = "esm" | "cjs";
+export type ServerPlatform = "node" | "neutral";
+
+type Dev = {
+  port?: number;
+  appServerPort?: number;
+  remixRequestHandlerPath?: string;
+  rebuildPollIntervalMs?: number;
+};
+
+interface FutureConfig {
+  unstable_cssModules: boolean;
+  unstable_cssSideEffectImports: boolean;
+  unstable_dev: boolean | Dev;
+  unstable_vanillaExtract: boolean;
+  v2_errorBoundary: boolean;
+  v2_meta: boolean;
+  v2_routeConvention: boolean;
+}
+
 /**
  * The user-provided config in `remix.config.js`.
  */
 export interface AppConfig {
   /**
    * The path to the `app` directory, relative to `remix.config.js`. Defaults
-   * to "app".
+   * to `"app"`.
    */
   appDirectory?: string;
 
   /**
    * The path to a directory Remix can use for caching things in development,
-   * relative to `remix.config.js`. Defaults to ".cache".
+   * relative to `remix.config.js`. Defaults to `".cache"`.
    */
   cacheDirectory?: string;
 
   /**
    * A function for defining custom routes, in addition to those already defined
-   * using the filesystem convention in `app/routes`.
+   * using the filesystem convention in `app/routes`. Both sets of routes will
+   * be merged.
    */
   routes?: (
     defineRoutes: DefineRoutesFunction
@@ -42,8 +77,19 @@ export interface AppConfig {
   /**
    * The path to the server build, relative to `remix.config.js`. Defaults to
    * "build".
+   *
+   * @deprecated Use {@link ServerConfig.serverBuildPath} instead.
    */
   serverBuildDirectory?: string;
+
+  /**
+   * The path to the server build file, relative to `remix.config.js`. This file
+   * should end in a `.js` extension and should be deployed to your server.
+   *
+   * If omitted, the default build path will be based on your
+   * {@link ServerConfig.serverBuildTarget}.
+   */
+  serverBuildPath?: string;
 
   /**
    * The path to the browser build, relative to `remix.config.js`. Defaults to
@@ -55,13 +101,13 @@ export interface AppConfig {
    * The path to the browser build, relative to remix.config.js. Defaults to
    * "public/build".
    *
-   * @deprecated Use `assetsBuildDirectory` instead
+   * @deprecated Use `{@link ServerConfig.assetsBuildDirectory}` instead
    */
   browserBuildDirectory?: string;
 
   /**
    * The URL prefix of the browser build with a trailing slash. Defaults to
-   * "/build/".
+   * `"/build/"`. This is the path the browser will use to find assets.
    */
   publicPath?: string;
 
@@ -69,12 +115,68 @@ export interface AppConfig {
    * The port number to use for the dev server. Defaults to 8002.
    */
   devServerPort?: number;
+
   /**
-   * The delay before the dev server broadcasts a reload event
+   * The delay, in milliseconds, before the dev server broadcasts a reload
+   * event. There is no delay by default.
    */
   devServerBroadcastDelay?: number;
 
+  /**
+   * Additional MDX remark / rehype plugins.
+   */
   mdx?: RemixMdxConfig | RemixMdxConfigFunction;
+
+  /**
+   * The output format of the server build. Defaults to "cjs".
+   *
+   * @deprecated Use {@link ServerConfig.serverBuildTarget} instead.
+   */
+  serverModuleFormat?: ServerModuleFormat;
+
+  /**
+   * The platform the server build is targeting. Defaults to "node".
+   *
+   * @deprecated Use {@link ServerConfig.serverBuildTarget} instead.
+   */
+  serverPlatform?: ServerPlatform;
+
+  /**
+   * The target of the server build. Defaults to "node-cjs".
+   */
+  serverBuildTarget?: ServerBuildTarget;
+
+  /**
+   * A server entrypoint, relative to the root directory that becomes your
+   * server's main module. If specified, Remix will compile this file along with
+   * your application into a single file to be deployed to your server. This
+   * file can use either a `.js` or `.ts` file extension.
+   */
+  server?: string;
+
+  /**
+   * A list of filenames or a glob patterns to match files in the `app/routes`
+   * directory that Remix will ignore. Matching files will not be recognized as
+   * routes.
+   */
+  ignoredRouteFiles?: string[];
+
+  /**
+   * A list of patterns that determined if a module is transpiled and included
+   * in the server bundle. This can be useful when consuming ESM only packages
+   * in a CJS build.
+   */
+  serverDependenciesToBundle?: Array<string | RegExp>;
+
+  /**
+   * A function for defining custom directories to watch while running `remix dev`, in addition to `appDirectory`.
+   */
+  watchPaths?:
+    | string
+    | string[]
+    | (() => Promise<string | string[]> | string | string[]);
+
+  future?: Partial<FutureConfig>;
 }
 
 /**
@@ -112,14 +214,20 @@ export interface RemixConfig {
   routes: RouteManifest;
 
   /**
-   * The absolute path to the server build directory.
+   * The path to the server build file. This file should end in a `.js`. Defaults
+   * are based on {@link ServerConfig.serverBuildTarget}.
    */
-  serverBuildDirectory: string;
+  serverBuildPath: string;
 
   /**
    * The absolute path to the assets build directory.
    */
   assetsBuildDirectory: string;
+
+  /**
+   * the original relative path to the assets build directory
+   */
+  relativeAssetsBuildDirectory: string;
 
   /**
    * The URL prefix of the public build with a trailing slash.
@@ -141,7 +249,54 @@ export interface RemixConfig {
    */
   devServerBroadcastDelay: number;
 
+  /**
+   * Additional MDX remark / rehype plugins.
+   */
   mdx?: RemixMdxConfig | RemixMdxConfigFunction;
+
+  /**
+   * The output format of the server build. Defaults to "cjs".
+   */
+  serverModuleFormat: ServerModuleFormat;
+
+  /**
+   * The platform the server build is targeting. Defaults to "node".
+   */
+  serverPlatform: ServerPlatform;
+
+  /**
+   * The target of the server build.
+   */
+  serverBuildTarget?: ServerBuildTarget;
+
+  /**
+   * The default entry module for the server build if a {@see RemixConfig.customServer} is not provided.
+   */
+  serverBuildTargetEntryModule: string;
+
+  /**
+   * A server entrypoint relative to the root directory that becomes your server's main module.
+   */
+  serverEntryPoint?: string;
+
+  /**
+   * A list of patterns that determined if a module is transpiled and included
+   * in the server bundle. This can be useful when consuming ESM only packages
+   * in a CJS build.
+   */
+  serverDependenciesToBundle: Array<string | RegExp>;
+
+  /**
+   * A list of directories to watch.
+   */
+  watchPaths: string[];
+
+  /**
+   * The path for the tsconfig file, if present on the root directory.
+   */
+  tsconfigPath: string | undefined;
+
+  future: FutureConfig;
 }
 
 /**
@@ -152,23 +307,55 @@ export async function readConfig(
   remixRoot?: string,
   serverMode = ServerMode.Production
 ): Promise<RemixConfig> {
-  if (!remixRoot) {
-    remixRoot = process.env.REMIX_ROOT || process.cwd();
-  }
-
   if (!isValidServerMode(serverMode)) {
     throw new Error(`Invalid server mode "${serverMode}"`);
   }
 
-  let rootDirectory = path.resolve(remixRoot);
-  let configFile = path.resolve(rootDirectory, "remix.config.js");
-
-  let appConfig: AppConfig;
-  try {
-    appConfig = require(configFile);
-  } catch (error) {
-    throw new Error(`Error loading Remix config in ${configFile}`);
+  if (!remixRoot) {
+    remixRoot = process.env.REMIX_ROOT || process.cwd();
   }
+
+  let rootDirectory = path.resolve(remixRoot);
+  let configFile = findConfig(rootDirectory, "remix.config");
+
+  let appConfig: AppConfig = {};
+  if (configFile) {
+    let appConfigModule: any;
+    try {
+      // shout out to next
+      // https://github.com/vercel/next.js/blob/b15a976e11bf1dc867c241a4c1734757427d609c/packages/next/server/config.ts#L748-L765
+      if (process.env.NODE_ENV === "test") {
+        // dynamic import does not currently work inside of vm which
+        // jest relies on so we fall back to require for this case
+        // https://github.com/nodejs/node/issues/35889
+        appConfigModule = require(configFile);
+      } else {
+        appConfigModule = await import(pathToFileURL(configFile).href);
+      }
+      appConfig = appConfigModule?.default || appConfigModule;
+    } catch (error: unknown) {
+      throw new Error(
+        `Error loading Remix config at ${configFile}\n${String(error)}`
+      );
+    }
+  }
+
+  let customServerEntryPoint = appConfig.server;
+  let serverBuildTarget: ServerBuildTarget | undefined =
+    appConfig.serverBuildTarget;
+  let serverModuleFormat: ServerModuleFormat =
+    appConfig.serverModuleFormat || "cjs";
+  let serverPlatform: ServerPlatform = appConfig.serverPlatform || "node";
+  switch (appConfig.serverBuildTarget) {
+    case "cloudflare-pages":
+    case "cloudflare-workers":
+    case "deno":
+      serverModuleFormat = "esm";
+      serverPlatform = "neutral";
+      break;
+  }
+
+  let mdx = appConfig.mdx;
 
   let appDirectory = path.resolve(
     rootDirectory,
@@ -190,22 +377,60 @@ export async function readConfig(
     throw new Error(`Missing "entry.server" file in ${appDirectory}`);
   }
 
-  let serverBuildDirectory = path.resolve(
-    rootDirectory,
-    appConfig.serverBuildDirectory || "build"
-  );
+  let serverBuildPath = "build/index.js";
+  switch (serverBuildTarget) {
+    case "arc":
+      serverBuildPath = "server/index.js";
+      break;
+    case "cloudflare-pages":
+      serverBuildPath = "functions/[[path]].js";
+      break;
+    case "netlify":
+      serverBuildPath = ".netlify/functions-internal/server.js";
+      break;
+    case "vercel":
+      serverBuildPath = "api/index.js";
+      break;
+  }
+  serverBuildPath = path.resolve(rootDirectory, serverBuildPath);
 
-  let assetsBuildDirectory = path.resolve(
-    rootDirectory,
+  // retain deprecated behavior for now
+  if (appConfig.serverBuildDirectory) {
+    serverBuildPath = path.resolve(
+      rootDirectory,
+      path.join(appConfig.serverBuildDirectory, "index.js")
+    );
+  }
+
+  if (appConfig.serverBuildPath) {
+    serverBuildPath = path.resolve(rootDirectory, appConfig.serverBuildPath);
+  }
+
+  let assetsBuildDirectory =
     appConfig.assetsBuildDirectory ||
-      appConfig.browserBuildDirectory ||
-      path.join("public", "build")
+    appConfig.browserBuildDirectory ||
+    path.join("public", "build");
+
+  let absoluteAssetsBuildDirectory = path.resolve(
+    rootDirectory,
+    assetsBuildDirectory
   );
 
-  let devServerPort = appConfig.devServerPort || 8002;
+  let devServerPort =
+    Number(process.env.REMIX_DEV_SERVER_WS_PORT) ||
+    (await getPort({ port: Number(appConfig.devServerPort) || 8002 }));
+  // set env variable so un-bundled servers can use it
+  process.env.REMIX_DEV_SERVER_WS_PORT = `${devServerPort}`;
   let devServerBroadcastDelay = appConfig.devServerBroadcastDelay || 0;
 
-  let publicPath = addTrailingSlash(appConfig.publicPath || "/build/");
+  let defaultPublicPath = "/build/";
+  switch (serverBuildTarget) {
+    case "arc":
+      defaultPublicPath = "/_static/build/";
+      break;
+  }
+
+  let publicPath = addTrailingSlash(appConfig.publicPath || defaultPublicPath);
 
   let rootRouteFile = findEntry(appDirectory, "root");
   if (!rootRouteFile) {
@@ -213,22 +438,75 @@ export async function readConfig(
   }
 
   let routes: RouteManifest = {
-    root: { path: "", id: "root", file: rootRouteFile }
+    root: { path: "", id: "root", file: rootRouteFile },
   };
-  if (fs.existsSync(path.resolve(appDirectory, "routes"))) {
-    let conventionalRoutes = defineConventionalRoutes(appDirectory);
-    for (let key of Object.keys(conventionalRoutes)) {
-      let route = conventionalRoutes[key];
+
+  let routesConvention = appConfig.future?.v2_routeConvention
+    ? flatRoutes
+    : defineConventionalRoutes;
+
+  if (fse.existsSync(path.resolve(appDirectory, "routes"))) {
+    let conventionalRoutes = routesConvention(
+      appDirectory,
+      appConfig.ignoredRouteFiles
+    );
+    for (let route of Object.values(conventionalRoutes)) {
       routes[route.id] = { ...route, parentId: route.parentId || "root" };
     }
   }
   if (appConfig.routes) {
     let manualRoutes = await appConfig.routes(defineRoutes);
-    for (let key of Object.keys(manualRoutes)) {
-      let route = manualRoutes[key];
+    for (let route of Object.values(manualRoutes)) {
       routes[route.id] = { ...route, parentId: route.parentId || "root" };
     }
   }
+
+  let watchPaths: string[] = [];
+  if (typeof appConfig.watchPaths === "function") {
+    let directories = await appConfig.watchPaths();
+    watchPaths = watchPaths.concat(
+      Array.isArray(directories) ? directories : [directories]
+    );
+  } else if (appConfig.watchPaths) {
+    watchPaths = watchPaths.concat(
+      Array.isArray(appConfig.watchPaths)
+        ? appConfig.watchPaths
+        : [appConfig.watchPaths]
+    );
+  }
+
+  let serverBuildTargetEntryModule = `export * from ${JSON.stringify(
+    serverBuildVirtualModule.id
+  )};`;
+
+  let serverDependenciesToBundle = appConfig.serverDependenciesToBundle || [];
+
+  // When tsconfigPath is undefined, the default "tsconfig.json" is not
+  // found in the root directory.
+  let tsconfigPath: string | undefined;
+  let rootTsconfig = path.resolve(rootDirectory, "tsconfig.json");
+  let rootJsConfig = path.resolve(rootDirectory, "jsconfig.json");
+
+  if (fse.existsSync(rootTsconfig)) {
+    tsconfigPath = rootTsconfig;
+  } else if (fse.existsSync(rootJsConfig)) {
+    tsconfigPath = rootJsConfig;
+  }
+
+  if (tsconfigPath) {
+    writeConfigDefaults(tsconfigPath);
+  }
+
+  let future: FutureConfig = {
+    unstable_cssModules: appConfig.future?.unstable_cssModules === true,
+    unstable_cssSideEffectImports:
+      appConfig.future?.unstable_cssSideEffectImports === true,
+    unstable_dev: appConfig.future?.unstable_dev ?? false,
+    unstable_vanillaExtract: appConfig.future?.unstable_vanillaExtract === true,
+    v2_errorBoundary: appConfig.future?.v2_errorBoundary === true,
+    v2_meta: appConfig.future?.v2_meta === true,
+    v2_routeConvention: appConfig.future?.v2_routeConvention === true,
+  };
 
   return {
     appDirectory,
@@ -237,13 +515,23 @@ export async function readConfig(
     entryServerFile,
     devServerPort,
     devServerBroadcastDelay,
-    assetsBuildDirectory,
+    assetsBuildDirectory: absoluteAssetsBuildDirectory,
+    relativeAssetsBuildDirectory: assetsBuildDirectory,
     publicPath,
     rootDirectory,
     routes,
-    serverBuildDirectory,
+    serverBuildPath,
     serverMode,
-    mdx: appConfig.mdx
+    serverModuleFormat,
+    serverPlatform,
+    serverBuildTarget,
+    serverBuildTargetEntryModule,
+    serverEntryPoint: customServerEntryPoint,
+    serverDependenciesToBundle,
+    mdx,
+    watchPaths,
+    tsconfigPath,
+    future,
   };
 }
 
@@ -256,7 +544,18 @@ const entryExts = [".js", ".jsx", ".ts", ".tsx"];
 function findEntry(dir: string, basename: string): string | undefined {
   for (let ext of entryExts) {
     let file = path.resolve(dir, basename + ext);
-    if (fs.existsSync(file)) return path.relative(dir, file);
+    if (fse.existsSync(file)) return path.relative(dir, file);
+  }
+
+  return undefined;
+}
+
+const configExts = [".js", ".cjs", ".mjs"];
+
+function findConfig(dir: string, basename: string): string | undefined {
+  for (let ext of configExts) {
+    let file = path.resolve(dir, basename + ext);
+    if (fse.existsSync(file)) return file;
   }
 
   return undefined;

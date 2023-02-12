@@ -1,21 +1,24 @@
+import type { StaticHandlerContext } from "@remix-run/router";
 import { splitCookiesString } from "set-cookie-parser";
 
 import type { ServerBuild } from "./build";
-import type { ServerRoute } from "./routes";
-import type { RouteMatch } from "./routeMatching";
 
-export function getDocumentHeaders(
+export function getDocumentHeadersRR(
   build: ServerBuild,
-  matches: RouteMatch<ServerRoute>[],
-  routeLoaderResponses: Response[],
-  actionResponse?: Response
+  context: StaticHandlerContext
 ): Headers {
-  return matches.reduce((parentHeaders, match, index) => {
-    let routeModule = build.routes[match.route.id].module;
-    let loaderHeaders = routeLoaderResponses[index]
-      ? routeLoaderResponses[index].headers
-      : new Headers();
-    let actionHeaders = actionResponse ? actionResponse.headers : new Headers();
+  let matches = context.errors
+    ? context.matches.slice(
+        0,
+        context.matches.findIndex((m) => context.errors![m.route.id]) + 1
+      )
+    : context.matches;
+
+  return matches.reduce((parentHeaders, match) => {
+    let { id } = match.route;
+    let routeModule = build.routes[id].module;
+    let loaderHeaders = context.loaderHeaders[id] || new Headers();
+    let actionHeaders = context.actionHeaders[id] || new Headers();
     let headers = new Headers(
       routeModule.headers
         ? typeof routeModule.headers === "function"
@@ -39,7 +42,7 @@ function prependCookies(parentHeaders: Headers, childHeaders: Headers): void {
 
   if (parentSetCookieString) {
     let cookies = splitCookiesString(parentSetCookieString);
-    cookies.forEach(cookie => {
+    cookies.forEach((cookie) => {
       childHeaders.append("Set-Cookie", cookie);
     });
   }

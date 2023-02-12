@@ -1,10 +1,11 @@
 import * as fs from "fs";
 import * as path from "path";
+import minimatch from "minimatch";
 
 import type { RouteManifest, DefineRouteFunction } from "./routes";
-import { defineRoutes, createRouteId, normalizeSlashes } from "./routes";
+import { defineRoutes, createRouteId } from "./routes";
 
-const routeModuleExts = [".js", ".jsx", ".ts", ".tsx", ".md", ".mdx"];
+export const routeModuleExts = [".js", ".jsx", ".ts", ".tsx", ".md", ".mdx"];
 
 export function isRouteModuleFile(filename: string): boolean {
   return routeModuleExts.includes(path.extname(filename));
@@ -21,23 +22,34 @@ export function isRouteModuleFile(filename: string): boolean {
  * For example, a file named `app/routes/gists/$username.tsx` creates a route
  * with a path of `gists/:username`.
  */
-export function defineConventionalRoutes(appDir: string): RouteManifest {
+export function defineConventionalRoutes(
+  appDir: string,
+  ignoredFilePatterns?: string[]
+): RouteManifest {
   let files: { [routeId: string]: string } = {};
 
   // First, find all route modules in app/routes
-  visitFiles(path.join(appDir, "routes"), file => {
-    let routeId = createRouteId(path.join("routes", file));
+  visitFiles(path.join(appDir, "routes"), (file) => {
+    if (
+      ignoredFilePatterns &&
+      ignoredFilePatterns.some((pattern) => minimatch(file, pattern))
+    ) {
+      return;
+    }
 
     if (isRouteModuleFile(file)) {
+      let routeId = createRouteId(path.join("routes", file));
       files[routeId] = path.join("routes", file);
-    } else {
-      throw new Error(
-        `Invalid route module file: ${path.join(appDir, "routes", file)}`
-      );
+      return;
     }
+
+    throw new Error(
+      `Invalid route module file: ${path.join(appDir, "routes", file)}`
+    );
   });
 
   let routeIds = Object.keys(files).sort(byLongestFirst);
+  let parentRouteIds = getParentRouteIds(routeIds);
 
   let uniqueRoutes = new Map<string, string>();
 
@@ -47,7 +59,7 @@ export function defineConventionalRoutes(appDir: string): RouteManifest {
     parentId?: string
   ): void {
     let childRouteIds = routeIds.filter(
-      id => findParentRouteId(routeIds, id) === parentId
+      (id) => parentRouteIds[id] === parentId
     );
 
     for (let routeId of childRouteIds) {
@@ -59,7 +71,7 @@ export function defineConventionalRoutes(appDir: string): RouteManifest {
       let fullPath = createRoutePath(routeId.slice("routes".length + 1));
       let uniqueRouteId = (fullPath || "") + (isIndexRoute ? "?index" : "");
 
-      if (typeof uniqueRouteId !== "undefined") {
+      if (uniqueRouteId) {
         if (uniqueRoutes.has(uniqueRouteId)) {
           throw new Error(
             `Path ${JSON.stringify(fullPath)} defined by route ${JSON.stringify(
@@ -75,7 +87,7 @@ export function defineConventionalRoutes(appDir: string): RouteManifest {
 
       if (isIndexRoute) {
         let invalidChildRoutes = routeIds.filter(
-          id => findParentRouteId(routeIds, id) === routeId
+          (id) => parentRouteIds[id] === routeId
         );
 
         if (invalidChildRoutes.length > 0) {
@@ -85,7 +97,7 @@ export function defineConventionalRoutes(appDir: string): RouteManifest {
         }
 
         defineRoute(routePath, files[routeId], {
-          index: true
+          index: true,
         });
       } else {
         defineRoute(routePath, files[routeId], () => {
@@ -98,8 +110,12 @@ export function defineConventionalRoutes(appDir: string): RouteManifest {
   return defineRoutes(defineNestedRoutes);
 }
 
-let escapeStart = "[";
-let escapeEnd = "]";
+export let paramPrefixChar = "$" as const;
+export let escapeStart = "[" as const;
+export let escapeEnd = "]" as const;
+
+export let optionalStart = "(" as const;
+export let optionalEnd = ")" as const;
 
 // TODO: Cleanup and write some tests for this function
 export function createRoutePath(partialRouteId: string): string | undefined {
@@ -107,16 +123,18 @@ export function createRoutePath(partialRouteId: string): string | undefined {
   let rawSegmentBuffer = "";
 
   let inEscapeSequence = 0;
+  let inOptionalSegment = 0;
+  let optionalSegmentIndex = null;
   let skipSegment = false;
   for (let i = 0; i < partialRouteId.length; i++) {
     let char = partialRouteId.charAt(i);
-    let lastChar = i > 0 ? partialRouteId.charAt(i - 1) : undefined;
+    let prevChar = i > 0 ? partialRouteId.charAt(i - 1) : undefined;
     let nextChar =
       i < partialRouteId.length - 1 ? partialRouteId.charAt(i + 1) : undefined;
 
     function isNewEscapeSequence() {
       return (
-        !inEscapeSequence && char === escapeStart && lastChar !== escapeStart
+        !inEscapeSequence && char === escapeStart && prevChar !== escapeStart
       );
     }
 
@@ -128,8 +146,28 @@ export function createRoutePath(partialRouteId: string): string | undefined {
       return char === "_" && nextChar === "_" && !rawSegmentBuffer;
     }
 
+    function isNewOptionalSegment() {
+      return (
+        char === optionalStart &&
+        prevChar !== optionalStart &&
+        (isSegmentSeparator(prevChar) || prevChar === undefined) &&
+        !inOptionalSegment &&
+        !inEscapeSequence
+      );
+    }
+
+    function isCloseOptionalSegment() {
+      return (
+        char === optionalEnd &&
+        nextChar !== optionalEnd &&
+        (isSegmentSeparator(nextChar) || nextChar === undefined) &&
+        inOptionalSegment &&
+        !inEscapeSequence
+      );
+    }
+
     if (skipSegment) {
-      if (char === "/" || char === "." || char === path.win32.sep) {
+      if (isSegmentSeparator(char)) {
         skipSegment = false;
       }
       continue;
@@ -145,18 +183,40 @@ export function createRoutePath(partialRouteId: string): string | undefined {
       continue;
     }
 
+    if (isNewOptionalSegment()) {
+      inOptionalSegment++;
+      optionalSegmentIndex = result.length;
+      result += optionalStart;
+      continue;
+    }
+
+    if (isCloseOptionalSegment()) {
+      if (optionalSegmentIndex !== null) {
+        result =
+          result.slice(0, optionalSegmentIndex) +
+          result.slice(optionalSegmentIndex + 1);
+      }
+      optionalSegmentIndex = null;
+      inOptionalSegment--;
+      result += "?";
+      continue;
+    }
+
     if (inEscapeSequence) {
       result += char;
       continue;
     }
 
-    if (char === "/" || char === path.win32.sep || char === ".") {
+    if (isSegmentSeparator(char)) {
       if (rawSegmentBuffer === "index" && result.endsWith("index")) {
         result = result.replace(/\/?index$/, "");
       } else {
         result += "/";
       }
+
       rawSegmentBuffer = "";
+      inOptionalSegment = 0;
+      optionalSegmentIndex = null;
       continue;
     }
 
@@ -167,7 +227,12 @@ export function createRoutePath(partialRouteId: string): string | undefined {
 
     rawSegmentBuffer += char;
 
-    if (char === "$") {
+    if (char === paramPrefixChar) {
+      if (nextChar === optionalEnd) {
+        throw new Error(
+          `Invalid route path: ${partialRouteId}. Splat route $ is already optional`
+        );
+      }
       result += typeof nextChar === "undefined" ? "*" : ":";
       continue;
     }
@@ -179,14 +244,30 @@ export function createRoutePath(partialRouteId: string): string | undefined {
     result = result.replace(/\/?index$/, "");
   }
 
+  if (rawSegmentBuffer === "index" && result.endsWith("index?")) {
+    throw new Error(
+      `Invalid route path: ${partialRouteId}. Make index route optional by using (index)`
+    );
+  }
+
   return result || undefined;
 }
 
-function findParentRouteId(
-  routeIds: string[],
-  childRouteId: string
-): string | undefined {
-  return routeIds.find(id => childRouteId.startsWith(`${id}/`));
+export function isSegmentSeparator(checkChar: string | undefined) {
+  if (!checkChar) return false;
+  return ["/", ".", path.win32.sep].includes(checkChar);
+}
+
+function getParentRouteIds(
+  routeIds: string[]
+): Record<string, string | undefined> {
+  return routeIds.reduce<Record<string, string | undefined>>(
+    (parentRouteIds, childRouteId) => ({
+      ...parentRouteIds,
+      [childRouteId]: routeIds.find((id) => childRouteId.startsWith(`${id}/`)),
+    }),
+    {}
+  );
 }
 
 function byLongestFirst(a: string, b: string): number {
@@ -209,3 +290,8 @@ function visitFiles(
     }
   }
 }
+
+/*
+eslint
+  no-loop-func: "off",
+*/

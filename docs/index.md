@@ -8,8 +8,6 @@ hidden: true
 
 # Remix Docs
 
-Holy smokes you're here! Let's do this. Welcome to the v1 stable release of Remix! Just so we're all clear, this is newly open sourced, so stable means "the API is stable", it doesn’t mean we don't have any bugs 😅 (though, we think we're doing alright). Let us know if you think you found one on [GitHub](https://github.com/remix-run/remix).
-
 ## Getting Started
 
 ```sh
@@ -28,7 +26,7 @@ We **strongly encourage you** to do one of the tutorials before anything else. R
   <a href="v1/tutorials/jokes" aria-label="Jokes App Tutorial">
     <docs-card>
       <h4>Jokes App Deep Dive</h4> 
-      <p>Dive deep into Remix and full stack develoment with this app. It's backed by a SQL database, user authentication and session, and of course some modern UI finishes. You'll learn about nested routes, sessions, data loading, data mutations, progressive enhancement, and more. Get a feel for what a data-backed web app feels like with Remix.</p>
+      <p>Dive deep into Remix and full stack development with this app. It's backed by a SQL database, user authentication and session, and of course some modern UI finishes. You'll learn about nested routes, sessions, data loading, data mutations, progressive enhancement, and more. Get a feel for what a data-backed web app feels like with Remix.</p>
     </docs-card>
   </a>
   <a href="v1/api/conventions" aria-label="Conventional APIs">
@@ -55,6 +53,12 @@ We **strongly encourage you** to do one of the tutorials before anything else. R
       <p>GitHub Discussions is also the best place to get help when you're stuck. Other folks can post answers for the next person to see.</p>
     </docs-card>
   </a>
+  <a href="https://github.com/remix-run/examples" aria-label="Remix Examples">
+    <docs-card>
+      <h4>Remix Examples</h4>
+      <p>Have a look at the various Remix examples made by the community and carefully reviewed by our team.</p>
+    </docs-card>
+  </a>
   <a href="https://rmx.as/discord" aria-label="Remix Discord">
     <docs-card>
       <h4>Discord Server</h4> 
@@ -62,3 +66,5 @@ We **strongly encourage you** to do one of the tutorials before anything else. R
     </docs-card>
   </a>
 </docs-cards>
+
+[git-hub]: https://github.com/remix-run/remix

@@ -1,90 +1,158 @@
 declare module "*.aac" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
+declare module "*.avif" {
+  let asset: string;
+  export default asset;
+}
+declare module "*.module.css" {
+  let styles: { readonly [key: string]: string };
+  export default styles;
+}
 declare module "*.css" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
 declare module "*.eot" {
-  const asset: string;
+  let asset: string;
+  export default asset;
+}
+declare module "*.fbx" {
+  let asset: string;
   export default asset;
 }
 declare module "*.flac" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
 declare module "*.gif" {
-  const asset: string;
+  let asset: string;
+  export default asset;
+}
+declare module "*.glb" {
+  let asset: string;
+  export default asset;
+}
+declare module "*.gltf" {
+  let asset: string;
+  export default asset;
+}
+declare module "*.gql" {
+  let asset: string;
+  export default asset;
+}
+declare module "*.graphql" {
+  let asset: string;
+  export default asset;
+}
+declare module "*.hdr" {
+  let asset: string;
   export default asset;
 }
 declare module "*.jpeg" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
 declare module "*.jpg" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
 declare module "*.md" {
-  import type { ComponentType as MdComponentType } from "react";
-  export const attributes: any;
-  export const filename: string;
-  const Component: MdComponentType;
+  import type { ComponentType, ReactHTML } from "react";
+  export let attributes: any;
+  export let filename: string;
+  let Component: ComponentType<
+    Readonly<Record<string, unknown>> & {
+      components?: Readonly<
+        Partial<
+          Record<keyof ReactHTML | "wrapper", keyof ReactHTML | ComponentType>
+        >
+      >;
+    }
+  >;
   export default Component;
 }
 declare module "*.mdx" {
-  import type { ComponentType as MdxComponentType } from "react";
-  export const attributes: any;
-  export const filename: string;
-  const Component: MdxComponentType;
+  import type { ComponentType, ReactHTML } from "react";
+  export let attributes: any;
+  export let filename: string;
+  let Component: ComponentType<
+    Readonly<Record<string, unknown>> & {
+      components?: Readonly<
+        Partial<
+          Record<keyof ReactHTML | "wrapper", keyof ReactHTML | ComponentType>
+        >
+      >;
+    }
+  >;
   export default Component;
 }
 declare module "*.mp3" {
-  const asset: string;
+  let asset: string;
+  export default asset;
+}
+declare module "*.mov" {
+  let asset: string;
   export default asset;
 }
 declare module "*.mp4" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
 declare module "*.ogg" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
 declare module "*.otf" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
 declare module "*.png" {
-  const asset: string;
+  let asset: string;
+  export default asset;
+}
+declare module "*.sql" {
+  let asset: string;
   export default asset;
 }
 declare module "*.svg" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
 declare module "*.ttf" {
-  const asset: string;
+  let asset: string;
+  export default asset;
+}
+declare module "*.wasm" {
+  let asset: string;
   export default asset;
 }
 declare module "*.wav" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
 declare module "*.webm" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
 declare module "*.webp" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
 declare module "*.woff" {
-  const asset: string;
+  let asset: string;
   export default asset;
 }
 declare module "*.woff2" {
-  const asset: string;
+  let asset: string;
+  export default asset;
+}
+declare module "*.webmanifest" {
+  let asset: string;
+  export default asset;
+}
+declare module "*.zip" {
+  let asset: string;
   export default asset;
 }

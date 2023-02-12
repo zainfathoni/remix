@@ -16,21 +16,22 @@ describe("loaders", () => {
           id: routeId,
           path: "/random",
           module: {
-            loader
-          }
-        }
+            loader,
+          },
+        },
       },
-      entry: { module: {} }
+      entry: { module: {} },
+      future: {},
     } as unknown as ServerBuild;
 
-    let handler = createRequestHandler(build, {});
+    let handler = createRequestHandler(build);
 
     let request = new Request(
       "http://example.com/random?_data=routes/random&foo=bar",
       {
         headers: {
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+        },
       }
     );
 
@@ -42,8 +43,8 @@ describe("loaders", () => {
     let loader = async ({ request }) => {
       throw new Response("null", {
         headers: {
-          "Content-type": "application/json"
-        }
+          "Content-type": "application/json",
+        },
       });
     };
 
@@ -54,21 +55,22 @@ describe("loaders", () => {
           id: routeId,
           path: "/random",
           module: {
-            loader
-          }
-        }
+            loader,
+          },
+        },
       },
-      entry: { module: {} }
+      entry: { module: {} },
+      future: {},
     } as unknown as ServerBuild;
 
-    let handler = createRequestHandler(build, {});
+    let handler = createRequestHandler(build);
 
     let request = new Request(
       "http://example.com/random?_data=routes/random&foo=bar",
       {
         headers: {
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+        },
       }
     );
 
@@ -88,21 +90,22 @@ describe("loaders", () => {
           id: routeId,
           path: "/random",
           module: {
-            loader
-          }
-        }
+            loader,
+          },
+        },
       },
-      entry: { module: {} }
+      entry: { module: {} },
+      future: {},
     } as unknown as ServerBuild;
 
-    let handler = createRequestHandler(build, {});
+    let handler = createRequestHandler(build);
 
     let request = new Request(
       "http://example.com/random?_data=routes/random&index&foo=bar",
       {
         headers: {
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+        },
       }
     );
 
@@ -122,21 +125,22 @@ describe("loaders", () => {
           id: routeId,
           path: "/random",
           module: {
-            loader
-          }
-        }
+            loader,
+          },
+        },
       },
-      entry: { module: {} }
+      entry: { module: {} },
+      future: {},
     } as unknown as ServerBuild;
 
-    let handler = createRequestHandler(build, {});
+    let handler = createRequestHandler(build);
 
     let request = new Request(
       "http://example.com/random?_data=routes/random&index&foo=bar&index=test",
       {
         headers: {
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+        },
       }
     );
 
