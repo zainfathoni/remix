@@ -1,5 +1,86 @@
 # `@remix-run/serve`
 
+## 1.17.0
+
+### Patch Changes
+
+- Add `HeadersArgs` type to be consistent with loaders/actions/meta and allows for using a `function` declaration in addition to an arrow function expression ([#6247](https://github.com/remix-run/remix/pull/6247))
+
+  ```tsx
+  import type { HeadersArgs } from "@remix-run/node"; // or cloudflare/deno
+
+  export function headers({ loaderHeaders }: HeadersArgs) {
+    return {
+      "x-my-custom-thing": loaderHeaders.get("x-my-custom-thing") || "fallback",
+    };
+  }
+  ```
+
+- Updated dependencies:
+  - `@remix-run/node@1.17.0`
+  - `@remix-run/express@1.17.0`
+
+## 1.16.1
+
+### Patch Changes
+
+- Updated dependencies:
+  - `@remix-run/node@1.16.1`
+  - `@remix-run/express@1.16.1`
+
+## 1.16.0
+
+### Patch Changes
+
+- add `@remix-run/node/install` side-effect to allow `node --require @remix-run/node/install` ([#6132](https://github.com/remix-run/remix/pull/6132))
+- Updated dependencies:
+  - `@remix-run/express@1.16.0`
+  - `@remix-run/node@1.16.0`
+
+## 1.15.0
+
+### Patch Changes
+
+- Updated dependencies:
+  - `@remix-run/express@1.15.0`
+
+## 1.14.3
+
+### Patch Changes
+
+- Updated dependencies:
+  - `@remix-run/express@1.14.3`
+
+## 1.14.2
+
+### Patch Changes
+
+- Updated dependencies:
+  - `@remix-run/express@1.14.2`
+
+## 1.14.1
+
+### Patch Changes
+
+- Updated dependencies:
+  - `@remix-run/express@1.14.1`
+
+## 1.14.0
+
+### Patch Changes
+
+- Allow configurable `NODE_ENV` with `remix-serve` ([#5540](https://github.com/remix-run/remix/pull/5540))
+- Sync `FutureConfig` interface between packages ([#5398](https://github.com/remix-run/remix/pull/5398))
+- Updated dependencies:
+  - `@remix-run/express@1.14.0`
+
+## 1.13.0
+
+### Patch Changes
+
+- Updated dependencies:
+  - `@remix-run/express@1.13.0`
+
 ## 1.12.0
 
 ### Minor Changes
